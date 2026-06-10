@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Norske aksjer – kursutvikling</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
+<script src="data.js"></script>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a2129;
+    --panel-hover: #222b35;
+    --text: #e8edf2;
+    --text-dim: #8b98a5;
+    --border: #2c3640;
+    --accent: #4a9eff;
+    --pos: #2ecc71;
+    --neg: #e74c3c;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    min-height: 100vh;
+    padding: 24px;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+  header { margin-bottom: 24px; }
+  h1 { font-size: 1.6rem; font-weight: 600; }
+  .subtitle { color: var(--text-dim); font-size: 0.9rem; margin-top: 4px; }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--card-color, var(--accent));
+    border-radius: 10px;
+    padding: 16px;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+    user-select: none;
+  }
+  .card:hover { background: var(--panel-hover); }
+  .card.skjult { opacity: 0.35; }
+  .card .navn { font-weight: 600; font-size: 1.05rem; }
+  .card .ticker { color: var(--text-dim); font-size: 0.8rem; margin-bottom: 10px; }
+  .card .kurs { font-size: 1.5rem; font-weight: 700; }
+  .card .endring { font-size: 0.9rem; margin-top: 4px; }
+  .endring.pos { color: var(--pos); }
+  .endring.neg { color: var(--neg); }
+
+  .kontroller {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .knappegruppe { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 4px; }
+  .knappegruppe button {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-family: inherit;
+  }
+  .knappegruppe button:hover { color: var(--text); }
+  .knappegruppe button.aktiv { background: var(--accent); color: #fff; }
+
+  .graf-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .graf-wrapper { position: relative; height: 440px; }
+
+  footer { margin-top: 16px; color: var(--text-dim); font-size: 0.8rem; }
+  @media (max-width: 600px) { .graf-wrapper { height: 320px; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>📈 Norske aksjer</h1>
+    <div class="subtitle">Kursutvikling for Equinor, Yara og Norsk Hydro (Oslo Børs)</div>
+  </header>
+
+  <div class="cards" id="cards"></div>
+
+  <div class="kontroller">
+    <div class="knappegruppe" id="periodeKnapper">
+      <button data-dager="7">1 uke</button>
+      <button data-dager="30">1 mnd</button>
+      <button data-dager="90">3 mnd</button>
+      <button data-dager="180">6 mnd</button>
+      <button data-dager="365" class="aktiv">1 år</button>
+      <button data-dager="9999">2 år</button>
+    </div>
+    <div class="knappegruppe" id="visningKnapper">
+      <button data-visning="kurs" class="aktiv">Kurs (NOK)</button>
+      <button data-visning="prosent">Utvikling (%)</button>
+    </div>
+  </div>
+
+  <div class="graf-panel">
+    <div class="graf-wrapper"><canvas id="graf"></canvas></div>
+  </div>
+
+  <footer id="footer"></footer>
+</div>
+
+<script>
+const FARGER = {
+  "EQNR.OL": "#ff4d6d",
+  "YAR.OL":  "#4a9eff",
+  "NHY.OL":  "#2ecc71"
+};
+const SYMBOLER = Object.keys(FARGER);
+const data = window.AKSJEDATA;
+
+let periodeDager = 365;
+let visning = "kurs";
+const skjulte = new Set();
+
+function filtrerPunkter(symbol) {
+  const punkter = data[symbol].punkter;
+  if (periodeDager >= 9999) return punkter;
+  const grense = new Date();
+  grense.setDate(grense.getDate() - periodeDager);
+  const grenseStr = grense.toISOString().slice(0, 10);
+  return punkter.filter(p => p[0] >= grenseStr);
+}
+
+function lagDatasett() {
+  return SYMBOLER.map(symbol => {
+    const punkter = filtrerPunkter(symbol);
+    const start = punkter.length ? punkter[0][1] : 1;
+    return {
+      label: data[symbol].navn,
+      data: punkter.map(p => ({
+        x: p[0],
+        y: visning === "prosent" ? ((p[1] / start) - 1) * 100 : p[1]
+      })),
+      borderColor: FARGER[symbol],
+      backgroundColor: FARGER[symbol],
+      borderWidth: 2,
+      pointRadius: 0,
+      pointHitRadius: 8,
+      tension: 0.1,
+      hidden: skjulte.has(symbol)
+    };
+  });
+}
+
+function lagKort() {
+  const container = document.getElementById("cards");
+  container.innerHTML = "";
+  for (const symbol of SYMBOLER) {
+    const info = data[symbol];
+    const punkter = filtrerPunkter(symbol);
+    const start = punkter.length ? punkter[0][1] : 0;
+    const slutt = punkter.length ? punkter[punkter.length - 1][1] : 0;
+    const endringPst = start ? ((slutt / start) - 1) * 100 : 0;
+    const kl = endringPst >= 0 ? "pos" : "neg";
+    const pil = endringPst >= 0 ? "▲" : "▼";
+
+    const kort = document.createElement("div");
+    kort.className = "card" + (skjulte.has(symbol) ? " skjult" : "");
+    kort.style.setProperty("--card-color", FARGER[symbol]);
+    kort.title = "Klikk for å vise/skjule i grafen";
+    kort.innerHTML = `
+      <div class="navn">${info.navn}</div>
+      <div class="ticker">${symbol}</div>
+      <div class="kurs">${slutt.toLocaleString("nb-NO", {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${info.valuta}</div>
+      <div class="endring ${kl}">${pil} ${Math.abs(endringPst).toFixed(1)} % i perioden</div>`;
+    kort.addEventListener("click", () => {
+      skjulte.has(symbol) ? skjulte.delete(symbol) : skjulte.add(symbol);
+      oppdater();
+    });
+    container.appendChild(kort);
+  }
+}
+
+let chart;
+function tegnGraf() {
+  const ctx = document.getElementById("graf").getContext("2d");
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: "line",
+    data: { datasets: lagDatasett() },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { labels: { color: "#e8edf2", usePointStyle: true, pointStyle: "line" } },
+        tooltip: {
+          backgroundColor: "#1a2129",
+          borderColor: "#2c3640",
+          borderWidth: 1,
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed.y;
+              return visning === "prosent"
+                ? ` ${ctx.dataset.label}: ${v >= 0 ? "+" : ""}${v.toFixed(1)} %`
+                : ` ${ctx.dataset.label}: ${v.toLocaleString("nb-NO", {minimumFractionDigits: 2, maximumFractionDigits: 2})} NOK`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: "category",
+          ticks: {
+            color: "#8b98a5",
+            maxTicksLimit: 10,
+            callback: function(val) {
+              const dato = this.getLabelForValue(val);
+              const [y, m, d] = dato.split("-");
+              const mnd = ["jan","feb","mar","apr","mai","jun","jul","aug","sep","okt","nov","des"];
+              return periodeDager > 180 ? `${mnd[+m-1]} ${y.slice(2)}` : `${+d}. ${mnd[+m-1]}`;
+            }
+          },
+          grid: { color: "rgba(140,152,165,0.08)" }
+        },
+        y: {
+          ticks: {
+            color: "#8b98a5",
+            callback: v => visning === "prosent" ? `${v >= 0 ? "+" : ""}${v} %` : v.toLocaleString("nb-NO")
+          },
+          grid: { color: "rgba(140,152,165,0.12)" }
+        }
+      }
+    }
+  });
+}
+
+function oppdater() {
+  lagKort();
+  tegnGraf();
+}
+
+document.getElementById("periodeKnapper").addEventListener("click", e => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  periodeDager = +btn.dataset.dager;
+  document.querySelectorAll("#periodeKnapper button").forEach(b => b.classList.toggle("aktiv", b === btn));
+  oppdater();
+});
+
+document.getElementById("visningKnapper").addEventListener("click", e => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  visning = btn.dataset.visning;
+  document.querySelectorAll("#visningKnapper button").forEach(b => b.classList.toggle("aktiv", b === btn));
+  oppdater();
+});
+
+document.getElementById("footer").textContent =
+  `Data fra Yahoo Finance · Sist oppdatert: ${data.oppdatert} · Kjør oppdater_data.ps1 for ferske tall`;
+
+oppdater();
+</script>
+</body>
+</html>

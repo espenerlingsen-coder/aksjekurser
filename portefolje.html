@@ -72,7 +72,13 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 18px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s, opacity 0.15s, border-color 0.15s;
   }
+  .card:hover { background: var(--panel-hover); }
+  .card.valgt { border-color: var(--accent); }
+  .card.dimmet { opacity: 0.45; }
   .card .navn { font-size: 1.15rem; font-weight: 700; margin-bottom: 14px; }
   .card .innhold { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
   .card .logo {
@@ -103,7 +109,7 @@
   <div class="topp">
     <div>
       <h1>Statens eierandeler på Oslo Børs</h1>
-      <div class="under">Markedsverdi i kroner</div>
+      <div class="under" id="undertittel">Markedsverdi i kroner</div>
       <div class="totalsum" id="totalsum"></div>
       <div class="totalsum-enhet" id="oppdatertTekst"></div>
     </div>
@@ -113,6 +119,7 @@
   <div class="cards" id="cards"></div>
 
   <footer>
+    Klikk på et selskap for å vise kun dette i totalsum og graf — klikk igjen for hele porteføljen.<br>
     Verdien beregnes som aksjekurs × antall aksjer × statens eierandel. Kursdata fra Yahoo Finance,
     oppdateres automatisk hvert 15. minutt i børsens åpningstid.<br>
     Eierandeler og antall aksjer er faste tall (per juni 2026) og kan avvike noe ved emisjoner og tilbakekjøp.
@@ -149,24 +156,30 @@ function formaterStort(v) {
   return (v / 1e6).toLocaleString("nb-NO", { maximumFractionDigits: 0 }) + " mill.";
 }
 
-// Totalsum og kort
-let total = 0;
+function statensVerdiNaa(symbol) {
+  const k = PORTEFOLJE[symbol];
+  return sisteKurs(symbol) * k.antallAksjer * k.eierandel;
+}
+
+// Kort per selskap. Klikk på et kort for å vise kun det selskapet i
+// totalsum og graf; klikk på samme kort igjen for hele porteføljen.
 const cardsEl = document.getElementById("cards");
+const kortEl = {};
+let valgt = null;
 for (const symbol of SYMBOLER) {
   const k = PORTEFOLJE[symbol];
   const kurs = sisteKurs(symbol);
   const markedsverdi = kurs * k.antallAksjer;
-  const statensVerdi = markedsverdi * k.eierandel;
-  total += statensVerdi;
 
   const card = document.createElement("div");
   card.className = "card";
+  card.title = "Klikk for å vise kun dette selskapet i grafen";
   card.innerHTML = `
     <div class="navn">${k.kortnavn}</div>
     <div class="innhold">
       <div class="logo" style="--logo-farge:${k.farge}">${k.initialer}</div>
       <div class="tall">
-        <div class="verdi">${formaterStort(statensVerdi)}</div>
+        <div class="verdi">${formaterStort(markedsverdi * k.eierandel)}</div>
         <div class="detaljer">
           Eierandel: ${(k.eierandel * 100).toLocaleString("nb-NO", { maximumFractionDigits: 2 })}%<br>
           Aksjekurs: ${kurs.toLocaleString("nb-NO", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}<br>
@@ -174,10 +187,13 @@ for (const symbol of SYMBOLER) {
         </div>
       </div>
     </div>`;
+  card.addEventListener("click", () => {
+    valgt = (valgt === symbol) ? null : symbol;
+    oppdaterVisning();
+  });
+  kortEl[symbol] = card;
   cardsEl.appendChild(card);
 }
-document.getElementById("totalsum").textContent =
-  Math.round(total).toLocaleString("nb-NO");
 
 (function visOppdatert() {
   const [dato, kl] = data.oppdatert.split(" ");
@@ -195,25 +211,33 @@ for (const symbol of SYMBOLER) {
   kursPerDato[symbol] = new Map(data[symbol].punkter);
 }
 const datoer = data["EQNR.OL"].punkter.map(p => p[0]);
-const sisteKjente = {};
-const serie = [];
-for (const dato of datoer) {
-  let sum = 0;
-  for (const symbol of SYMBOLER) {
-    const kurs = kursPerDato[symbol].get(dato) ?? sisteKjente[symbol];
-    if (kurs === undefined) continue; // ikke børsnotert ennå
-    sisteKjente[symbol] = kurs;
-    sum += kurs * PORTEFOLJE[symbol].antallAksjer * PORTEFOLJE[symbol].eierandel;
+function beregnSerie(symbols) {
+  const sisteKjente = {};
+  const serie = [];
+  for (const dato of datoer) {
+    let sum = 0;
+    for (const symbol of symbols) {
+      const kurs = kursPerDato[symbol].get(dato) ?? sisteKjente[symbol];
+      if (kurs === undefined) continue; // ikke børsnotert ennå
+      sisteKjente[symbol] = kurs;
+      sum += kurs * PORTEFOLJE[symbol].antallAksjer * PORTEFOLJE[symbol].eierandel;
+    }
+    serie.push({ x: dato, y: sum / 1e9 });
   }
-  serie.push({ x: dato, y: sum / 1e9 });
+  return serie;
 }
 
-new Chart(document.getElementById("graf").getContext("2d"), {
+// Formater mrd.-verdier: små selskaper (under 10 mrd.) trenger desimaler
+function fmtMrd(v) {
+  return v.toLocaleString("nb-NO", { maximumFractionDigits: v < 10 ? 2 : 0 });
+}
+
+const chart = new Chart(document.getElementById("graf").getContext("2d"), {
   type: "line",
   data: {
     datasets: [{
       label: "Statens eierandeler",
-      data: serie,
+      data: beregnSerie(SYMBOLER),
       borderColor: "#4a9eff",
       backgroundColor: "rgba(74, 158, 255, 0.18)",
       fill: true,
@@ -234,7 +258,7 @@ new Chart(document.getElementById("graf").getContext("2d"), {
         borderColor: "#2c3640",
         borderWidth: 1,
         callbacks: {
-          label: ctx => ` ${Math.round(ctx.parsed.y).toLocaleString("nb-NO")} mrd. kr`
+          label: ctx => ` ${fmtMrd(ctx.parsed.y)} mrd. kr`
         }
       }
     },
@@ -253,12 +277,38 @@ new Chart(document.getElementById("graf").getContext("2d"), {
         grid: { display: false }
       },
       y: {
-        ticks: { color: "#8b98a5", callback: v => v.toLocaleString("nb-NO") + " mrd." },
+        ticks: { color: "#8b98a5", callback: v => fmtMrd(v) + " mrd." },
         grid: { color: "rgba(140,152,165,0.12)" }
       }
     }
   }
 });
+
+function oppdaterVisning() {
+  const symbols = valgt ? [valgt] : SYMBOLER;
+
+  let total = 0;
+  for (const s of symbols) total += statensVerdiNaa(s);
+  document.getElementById("totalsum").textContent =
+    Math.round(total).toLocaleString("nb-NO");
+  document.getElementById("undertittel").textContent = valgt
+    ? `Statens andel i ${PORTEFOLJE[valgt].kortnavn} – markedsverdi i kroner`
+    : "Markedsverdi i kroner";
+
+  for (const s of SYMBOLER) {
+    kortEl[s].classList.toggle("valgt", valgt === s);
+    kortEl[s].classList.toggle("dimmet", valgt !== null && valgt !== s);
+  }
+
+  const farge = valgt ? PORTEFOLJE[valgt].farge : "#4a9eff";
+  const ds = chart.data.datasets[0];
+  ds.data = beregnSerie(symbols);
+  ds.label = valgt ? `Statens andel i ${PORTEFOLJE[valgt].kortnavn}` : "Statens eierandeler";
+  ds.borderColor = farge;
+  ds.backgroundColor = farge + "2e";
+  chart.update();
+}
+oppdaterVisning();
 </script>
 </body>
 </html>

@@ -82,13 +82,16 @@
   .card .navn { font-size: 1.15rem; font-weight: 700; margin-bottom: 14px; }
   .card .innhold { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
   .card .logo {
-    width: 52px; height: 52px;
+    width: 56px; height: 56px;
     border-radius: 10px;
     display: flex; align-items: center; justify-content: center;
-    font-weight: 800; font-size: 1.1rem; color: #fff;
-    background: var(--logo-farge, var(--accent));
+    font-weight: 800; font-size: 1.05rem; color: #fff;
+    background: #fff;
+    padding: 7px;
     flex-shrink: 0;
+    overflow: hidden;
   }
+  .card .logo img { width: 100%; height: 100%; object-fit: contain; }
   .card .tall { text-align: right; }
   .card .verdi { font-size: 1.35rem; font-weight: 800; }
   .card .detaljer { color: var(--text-dim); font-size: 0.8rem; font-style: italic; margin-top: 6px; line-height: 1.5; }
@@ -131,17 +134,17 @@
 // og omtrentlig antall utestående aksjer per selskap.
 // Juster disse tallene her hvis eierandel eller aksjeantall endres.
 const PORTEFOLJE = {
-  "EQNR.OL":  { kortnavn: "Equinor",      eierandel: 0.67,   antallAksjer: 2521000000, farge: "#e6336b", initialer: "EQ" },
-  "DNB.OL":   { kortnavn: "DNB Bank",     eierandel: 0.3315, antallAksjer: 1474000000, farge: "#00755f", initialer: "DNB" },
+  "EQNR.OL":  { kortnavn: "Equinor",      eierandel: 0.67,   antallAksjer: 2521000000, farge: "#e6336b", initialer: "EQ",  logo: "logoer/EQNR.svg" },
+  "DNB.OL":   { kortnavn: "DNB Bank",     eierandel: 0.3315, antallAksjer: 1474000000, farge: "#00755f", initialer: "DNB", logo: "logoer/DNB.svg" },
   // Kongsberg Gruppen ble i april 2026 fisjonert i to borsnoterte selskaper:
   // aksjonaerene fikk en KMAR-aksje per KOG-aksje, og statens eierandel
   // (50,004 %) er lik i begge.
-  "KOG.OL":   { kortnavn: "Kongsberg Gruppen",  eierandel: 0.50004, antallAksjer: 815000000, farge: "#c8501e", initialer: "KOG" },
-  "KMAR.OL":  { kortnavn: "Kongsberg Maritime", eierandel: 0.50004, antallAksjer: 815000000, farge: "#d98e2b", initialer: "KM" },
-  "TEL.OL":   { kortnavn: "Telenor",      eierandel: 0.5397, antallAksjer: 1350000000, farge: "#19a9e0", initialer: "TEL" },
-  "NHY.OL":   { kortnavn: "Norsk Hydro",  eierandel: 0.3426, antallAksjer: 1886000000, farge: "#4a6fa5", initialer: "NHY" },
-  "YAR.OL":   { kortnavn: "Yara",         eierandel: 0.3621, antallAksjer:  254200000, farge: "#2456a4", initialer: "YAR" },
-  "AKAST.OL": { kortnavn: "Akastor",      eierandel: 0.1208, antallAksjer:  270000000, farge: "#5b7a99", initialer: "AKA" }
+  "KOG.OL":   { kortnavn: "Kongsberg Gruppen",  eierandel: 0.50004, antallAksjer: 815000000, farge: "#c8501e", initialer: "KOG", logo: "logoer/KOG.png" },
+  "KMAR.OL":  { kortnavn: "Kongsberg Maritime", eierandel: 0.50004, antallAksjer: 815000000, farge: "#d98e2b", initialer: "KM",  logo: "logoer/KMAR.png" },
+  "TEL.OL":   { kortnavn: "Telenor",      eierandel: 0.5397, antallAksjer: 1350000000, farge: "#19a9e0", initialer: "TEL", logo: "logoer/TEL.png" },
+  "NHY.OL":   { kortnavn: "Norsk Hydro",  eierandel: 0.3426, antallAksjer: 1886000000, farge: "#4a6fa5", initialer: "NHY", logo: "logoer/NHY.svg" },
+  "YAR.OL":   { kortnavn: "Yara",         eierandel: 0.3621, antallAksjer:  254200000, farge: "#2456a4", initialer: "YAR", logo: "logoer/YAR.png" },
+  "AKAST.OL": { kortnavn: "Akastor",      eierandel: 0.1208, antallAksjer:  270000000, farge: "#5b7a99", initialer: "AKA", logo: "logoer/AKAST.png" }
 };
 const data = window.AKSJEDATA;
 const SYMBOLER = Object.keys(PORTEFOLJE);
@@ -177,7 +180,8 @@ for (const symbol of SYMBOLER) {
   card.innerHTML = `
     <div class="navn">${k.kortnavn}</div>
     <div class="innhold">
-      <div class="logo" style="--logo-farge:${k.farge}">${k.initialer}</div>
+      <div class="logo"><img src="${k.logo}" alt="${k.kortnavn}-logo"
+        onerror="this.parentElement.textContent='${k.initialer}'; this.parentElement.style.background='${k.farge}'"></div>
       <div class="tall">
         <div class="verdi">${formaterStort(markedsverdi * k.eierandel)}</div>
         <div class="detaljer">

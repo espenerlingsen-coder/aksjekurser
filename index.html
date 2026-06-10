@@ -5,7 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Norske aksjer – kursutvikling</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="data.js"></script>
+<script>
+  // Last data.js med et versjonsnummer som endres hvert minutt,
+  // slik at besøkende ikke får en gammel, mellomlagret kopi.
+  document.write('<script src="data.js?v=' + Math.floor(Date.now() / 60000) + '"><\/script>');
+</script>
 <style>
   :root {
     --bg: #0f1419;
@@ -30,6 +34,23 @@
   header { margin-bottom: 24px; }
   h1 { font-size: 1.6rem; font-weight: 600; }
   .subtitle { color: var(--text-dim); font-size: 0.9rem; margin-top: 4px; }
+  .oppdatert {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 4px 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+  }
+  .oppdatert .prikk {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--pos);
+    margin-right: 6px;
+  }
 
   .cards {
     display: grid;
@@ -95,6 +116,7 @@
   <header>
     <h1>📈 Norske aksjer</h1>
     <div class="subtitle">Kursutvikling for Equinor, Yara og Norsk Hydro (Oslo Børs)</div>
+    <div class="oppdatert" id="oppdatertTekst"></div>
   </header>
 
   <div class="cards" id="cards"></div>
@@ -268,8 +290,15 @@ document.getElementById("visningKnapper").addEventListener("click", e => {
   oppdater();
 });
 
+(function visOppdatert() {
+  const [dato, kl] = data.oppdatert.split(" ");
+  const [y, m, d] = dato.split("-");
+  document.getElementById("oppdatertTekst").innerHTML =
+    `<span class="prikk"></span>Sist oppdatert ${+d}.${+m}.${y} kl. ${kl} (norsk tid)`;
+})();
+
 document.getElementById("footer").textContent =
-  `Data fra Yahoo Finance · Sist oppdatert: ${data.oppdatert} · Kjør oppdater_data.ps1 for ferske tall`;
+  "Data fra Yahoo Finance · Oppdateres automatisk hvert 15. minutt på hverdager i børsens åpningstid";
 
 oppdater();
 </script>

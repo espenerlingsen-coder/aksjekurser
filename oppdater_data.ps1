@@ -34,7 +34,13 @@ foreach ($t in $tickers) {
     }
 }
 
-$resultat["oppdatert"] = (Get-Date).ToString("yyyy-MM-dd HH:mm")
+# Tidsstempel i norsk tid (GitHub-serverne går i UTC)
+$tz = $null
+foreach ($id in @("Europe/Oslo", "W. Europe Standard Time")) {
+    try { $tz = [TimeZoneInfo]::FindSystemTimeZoneById($id); break } catch {}
+}
+$naa = [TimeZoneInfo]::ConvertTimeFromUtc([DateTime]::UtcNow, $tz)
+$resultat["oppdatert"] = $naa.ToString("yyyy-MM-dd HH:mm")
 
 $json = $resultat | ConvertTo-Json -Depth 10 -Compress
 $filsti = Join-Path $PSScriptRoot "data.js"

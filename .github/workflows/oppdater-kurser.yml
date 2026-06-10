@@ -2,8 +2,9 @@ name: Oppdater kursdata
 
 on:
   schedule:
-    # Hver ukedag kl. 17:30 UTC (18:30/19:30 norsk tid, etter at Oslo Børs har stengt)
-    - cron: "30 17 * * 1-5"
+    # Hvert 15. minutt på hverdager, kl. 06-15 UTC (dekker Oslo Børs'
+    # åpningstid 09:00-16:30 norsk tid, både sommer- og vintertid)
+    - cron: "*/15 6-15 * * 1-5"
   workflow_dispatch: {}
 
 permissions:

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Statens eierandeler på Oslo Børs</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
+<script>
+  // Last data.js med et versjonsnummer som endres hvert minutt,
+  // slik at besøkende ikke får en gammel, mellomlagret kopi.
+  document.write('<script src="data.js?v=' + Math.floor(Date.now() / 60000) + '"><\/script>');
+</script>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a2129;
+    --panel-hover: #222b35;
+    --text: #e8edf2;
+    --text-dim: #8b98a5;
+    --border: #2c3640;
+    --accent: #4a9eff;
+    --pos: #2ecc71;
+    --neg: #e74c3c;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    min-height: 100vh;
+    padding: 24px;
+  }
+  .container { max-width: 1200px; margin: 0 auto; }
+
+  nav { margin-bottom: 16px; font-size: 0.9rem; }
+  nav a { color: var(--accent); text-decoration: none; }
+  nav a:hover { text-decoration: underline; }
+
+  .topp {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin-bottom: 24px;
+    align-items: center;
+  }
+  .topp h1 { font-size: 1.4rem; font-weight: 700; }
+  .topp .under { color: var(--text-dim); font-size: 0.95rem; font-weight: 600; margin-top: 2px; }
+  .totalsum {
+    font-size: clamp(2rem, 5vw, 3.6rem);
+    font-weight: 800;
+    letter-spacing: 1px;
+    margin-top: 18px;
+    line-height: 1.1;
+  }
+  .totalsum-enhet { color: var(--text-dim); font-size: 0.85rem; margin-top: 4px; }
+  .graf-wrapper { position: relative; height: 220px; }
+  @media (max-width: 800px) {
+    .topp { grid-template-columns: 1fr; }
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+  }
+  .card .navn { font-size: 1.15rem; font-weight: 700; margin-bottom: 14px; }
+  .card .innhold { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .card .logo {
+    width: 52px; height: 52px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 1.1rem; color: #fff;
+    background: var(--logo-farge, var(--accent));
+    flex-shrink: 0;
+  }
+  .card .tall { text-align: right; }
+  .card .verdi { font-size: 1.35rem; font-weight: 800; }
+  .card .detaljer { color: var(--text-dim); font-size: 0.8rem; font-style: italic; margin-top: 6px; line-height: 1.5; }
+
+  footer {
+    margin-top: 24px;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    text-align: center;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <nav><a href="index.html">← Til kursgrafene</a></nav>
+
+  <div class="topp">
+    <div>
+      <h1>Statens eierandeler på Oslo Børs</h1>
+      <div class="under">Markedsverdi i kroner</div>
+      <div class="totalsum" id="totalsum"></div>
+      <div class="totalsum-enhet" id="oppdatertTekst"></div>
+    </div>
+    <div class="graf-wrapper"><canvas id="graf"></canvas></div>
+  </div>
+
+  <div class="cards" id="cards"></div>
+
+  <footer>
+    Verdien beregnes som aksjekurs × antall aksjer × statens eierandel. Kursdata fra Yahoo Finance,
+    oppdateres automatisk hvert 15. minutt i børsens åpningstid.<br>
+    Eierandeler og antall aksjer er faste tall (per juni 2026) og kan avvike noe ved emisjoner og tilbakekjøp.
+  </footer>
+</div>
+
+<script>
+// Statens eierandel (kilde: eierskapsmeldingen / NFDs eierskapsoversikt, juni 2026)
+// og omtrentlig antall utestående aksjer per selskap.
+// Juster disse tallene her hvis eierandel eller aksjeantall endres.
+const PORTEFOLJE = {
+  "EQNR.OL":  { kortnavn: "Equinor",      eierandel: 0.67,   antallAksjer: 2521000000, farge: "#e6336b", initialer: "EQ" },
+  "DNB.OL":   { kortnavn: "DNB Bank",     eierandel: 0.3315, antallAksjer: 1474000000, farge: "#00755f", initialer: "DNB" },
+  "KOG.OL":   { kortnavn: "Kongsberg",    eierandel: 0.5000, antallAksjer:  815000000, farge: "#c8501e", initialer: "KOG" },
+  "TEL.OL":   { kortnavn: "Telenor",      eierandel: 0.5397, antallAksjer: 1350000000, farge: "#19a9e0", initialer: "TEL" },
+  "NHY.OL":   { kortnavn: "Norsk Hydro",  eierandel: 0.3426, antallAksjer: 1886000000, farge: "#4a6fa5", initialer: "NHY" },
+  "YAR.OL":   { kortnavn: "Yara",         eierandel: 0.3621, antallAksjer:  254200000, farge: "#2456a4", initialer: "YAR" },
+  "AKAST.OL": { kortnavn: "Akastor",      eierandel: 0.1208, antallAksjer:  270000000, farge: "#5b7a99", initialer: "AKA" }
+};
+const data = window.AKSJEDATA;
+const SYMBOLER = Object.keys(PORTEFOLJE);
+
+function sisteKurs(symbol) {
+  const p = data[symbol].punkter;
+  return p[p.length - 1][1];
+}
+
+function formaterStort(v) {
+  if (v >= 1e9) return (v / 1e9).toLocaleString("nb-NO", { maximumFractionDigits: 0 }) + " mrd.";
+  return (v / 1e6).toLocaleString("nb-NO", { maximumFractionDigits: 0 }) + " mill.";
+}
+
+// Totalsum og kort
+let total = 0;
+const cardsEl = document.getElementById("cards");
+for (const symbol of SYMBOLER) {
+  const k = PORTEFOLJE[symbol];
+  const kurs = sisteKurs(symbol);
+  const markedsverdi = kurs * k.antallAksjer;
+  const statensVerdi = markedsverdi * k.eierandel;
+  total += statensVerdi;
+
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `
+    <div class="navn">${k.kortnavn}</div>
+    <div class="innhold">
+      <div class="logo" style="--logo-farge:${k.farge}">${k.initialer}</div>
+      <div class="tall">
+        <div class="verdi">${formaterStort(statensVerdi)}</div>
+        <div class="detaljer">
+          Eierandel: ${(k.eierandel * 100).toLocaleString("nb-NO", { maximumFractionDigits: 2 })}%<br>
+          Aksjekurs: ${kurs.toLocaleString("nb-NO", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}<br>
+          Markedsverdi: ${formaterStort(markedsverdi)}
+        </div>
+      </div>
+    </div>`;
+  cardsEl.appendChild(card);
+}
+document.getElementById("totalsum").textContent =
+  Math.round(total).toLocaleString("nb-NO");
+
+(function visOppdatert() {
+  const [dato, kl] = data.oppdatert.split(" ");
+  const [y, m, d] = dato.split("-");
+  document.getElementById("oppdatertTekst").textContent =
+    `Sist oppdatert ${+d}.${+m}.${y} kl. ${kl} (norsk tid)`;
+})();
+
+// Historisk porteføljeverdi: for hver dato summeres kurs x antall aksjer x eierandel.
+// Mangler et selskap kurs en dag (f.eks. ulik handelsdag), brukes siste kjente kurs.
+const kursPerDato = {};
+for (const symbol of SYMBOLER) {
+  kursPerDato[symbol] = new Map(data[symbol].punkter);
+}
+const datoer = data["EQNR.OL"].punkter.map(p => p[0]);
+const sisteKjente = {};
+const serie = [];
+for (const dato of datoer) {
+  let sum = 0, komplett = true;
+  for (const symbol of SYMBOLER) {
+    const kurs = kursPerDato[symbol].get(dato) ?? sisteKjente[symbol];
+    if (kurs === undefined) { komplett = false; break; }
+    sisteKjente[symbol] = kurs;
+    sum += kurs * PORTEFOLJE[symbol].antallAksjer * PORTEFOLJE[symbol].eierandel;
+  }
+  if (komplett) serie.push({ x: dato, y: sum / 1e9 });
+}
+
+new Chart(document.getElementById("graf").getContext("2d"), {
+  type: "line",
+  data: {
+    datasets: [{
+      label: "Statens eierandeler",
+      data: serie,
+      borderColor: "#4a9eff",
+      backgroundColor: "rgba(74, 158, 255, 0.18)",
+      fill: true,
+      borderWidth: 2,
+      pointRadius: 0,
+      pointHitRadius: 8,
+      tension: 0.1
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: "index", intersect: false },
+    plugins: {
+      legend: { labels: { color: "#8b98a5", usePointStyle: true, pointStyle: "line", boxHeight: 6 } },
+      tooltip: {
+        backgroundColor: "#1a2129",
+        borderColor: "#2c3640",
+        borderWidth: 1,
+        callbacks: {
+          label: ctx => ` ${Math.round(ctx.parsed.y).toLocaleString("nb-NO")} mrd. kr`
+        }
+      }
+    },
+    scales: {
+      x: {
+        type: "category",
+        ticks: {
+          color: "#8b98a5",
+          maxTicksLimit: 6,
+          callback: function(val) {
+            const [y, m] = this.getLabelForValue(val).split("-");
+            const mnd = ["jan","feb","mar","apr","mai","jun","jul","aug","sep","okt","nov","des"];
+            return `${mnd[+m-1]} ${y.slice(2)}`;
+          }
+        },
+        grid: { display: false }
+      },
+      y: {
+        ticks: { color: "#8b98a5", callback: v => v.toLocaleString("nb-NO") + " mrd." },
+        grid: { color: "rgba(140,152,165,0.12)" }
+      }
+    }
+  }
+});
+</script>
+</body>
+</html>

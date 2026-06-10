@@ -2,9 +2,13 @@
 # Kjør dette skriptet for å oppdatere grafene med ferske tall.
 
 $tickers = @(
-    @{ symbol = "EQNR.OL"; navn = "Equinor" },
-    @{ symbol = "YAR.OL";  navn = "Yara International" },
-    @{ symbol = "NHY.OL";  navn = "Norsk Hydro" }
+    @{ symbol = "EQNR.OL";  navn = "Equinor" },
+    @{ symbol = "YAR.OL";   navn = "Yara International" },
+    @{ symbol = "NHY.OL";   navn = "Norsk Hydro" },
+    @{ symbol = "DNB.OL";   navn = "DNB Bank" },
+    @{ symbol = "KOG.OL";   navn = "Kongsberg Gruppen" },
+    @{ symbol = "TEL.OL";   navn = "Telenor" },
+    @{ symbol = "AKAST.OL"; navn = "Akastor" }
 )
 
 $resultat = [ordered]@{}

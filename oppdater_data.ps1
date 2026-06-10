@@ -37,5 +37,6 @@ foreach ($t in $tickers) {
 $resultat["oppdatert"] = (Get-Date).ToString("yyyy-MM-dd HH:mm")
 
 $json = $resultat | ConvertTo-Json -Depth 10 -Compress
-[System.IO.File]::WriteAllText("$PSScriptRoot\data.js", "window.AKSJEDATA = $json;", (New-Object System.Text.UTF8Encoding($false)))
+$filsti = Join-Path $PSScriptRoot "data.js"
+[System.IO.File]::WriteAllText($filsti, "window.AKSJEDATA = $json;", (New-Object System.Text.UTF8Encoding($false)))
 Write-Host "Ferdig! Data lagret i data.js"

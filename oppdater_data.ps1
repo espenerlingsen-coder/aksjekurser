@@ -7,6 +7,7 @@ $tickers = @(
     @{ symbol = "NHY.OL";   navn = "Norsk Hydro" },
     @{ symbol = "DNB.OL";   navn = "DNB Bank" },
     @{ symbol = "KOG.OL";   navn = "Kongsberg Gruppen" },
+    @{ symbol = "KMAR.OL";  navn = "Kongsberg Maritime" },
     @{ symbol = "TEL.OL";   navn = "Telenor" },
     @{ symbol = "AKAST.OL"; navn = "Akastor" }
 )

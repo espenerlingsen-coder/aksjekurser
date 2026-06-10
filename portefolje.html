@@ -126,7 +126,11 @@
 const PORTEFOLJE = {
   "EQNR.OL":  { kortnavn: "Equinor",      eierandel: 0.67,   antallAksjer: 2521000000, farge: "#e6336b", initialer: "EQ" },
   "DNB.OL":   { kortnavn: "DNB Bank",     eierandel: 0.3315, antallAksjer: 1474000000, farge: "#00755f", initialer: "DNB" },
-  "KOG.OL":   { kortnavn: "Kongsberg",    eierandel: 0.5000, antallAksjer:  815000000, farge: "#c8501e", initialer: "KOG" },
+  // Kongsberg Gruppen ble i april 2026 fisjonert i to borsnoterte selskaper:
+  // aksjonaerene fikk en KMAR-aksje per KOG-aksje, og statens eierandel
+  // (50,004 %) er lik i begge.
+  "KOG.OL":   { kortnavn: "Kongsberg Gruppen",  eierandel: 0.50004, antallAksjer: 815000000, farge: "#c8501e", initialer: "KOG" },
+  "KMAR.OL":  { kortnavn: "Kongsberg Maritime", eierandel: 0.50004, antallAksjer: 815000000, farge: "#d98e2b", initialer: "KM" },
   "TEL.OL":   { kortnavn: "Telenor",      eierandel: 0.5397, antallAksjer: 1350000000, farge: "#19a9e0", initialer: "TEL" },
   "NHY.OL":   { kortnavn: "Norsk Hydro",  eierandel: 0.3426, antallAksjer: 1886000000, farge: "#4a6fa5", initialer: "NHY" },
   "YAR.OL":   { kortnavn: "Yara",         eierandel: 0.3621, antallAksjer:  254200000, farge: "#2456a4", initialer: "YAR" },
@@ -184,6 +188,8 @@ document.getElementById("totalsum").textContent =
 
 // Historisk porteføljeverdi: for hver dato summeres kurs x antall aksjer x eierandel.
 // Mangler et selskap kurs en dag (f.eks. ulik handelsdag), brukes siste kjente kurs.
+// Selskaper som ennå ikke var børsnotert (f.eks. Kongsberg Maritime før april 2026)
+// telles som 0 frem til første noteringsdag.
 const kursPerDato = {};
 for (const symbol of SYMBOLER) {
   kursPerDato[symbol] = new Map(data[symbol].punkter);
@@ -192,14 +198,14 @@ const datoer = data["EQNR.OL"].punkter.map(p => p[0]);
 const sisteKjente = {};
 const serie = [];
 for (const dato of datoer) {
-  let sum = 0, komplett = true;
+  let sum = 0;
   for (const symbol of SYMBOLER) {
     const kurs = kursPerDato[symbol].get(dato) ?? sisteKjente[symbol];
-    if (kurs === undefined) { komplett = false; break; }
+    if (kurs === undefined) continue; // ikke børsnotert ennå
     sisteKjente[symbol] = kurs;
     sum += kurs * PORTEFOLJE[symbol].antallAksjer * PORTEFOLJE[symbol].eierandel;
   }
-  if (komplett) serie.push({ x: dato, y: sum / 1e9 });
+  serie.push({ x: dato, y: sum / 1e9 });
 }
 
 new Chart(document.getElementById("graf").getContext("2d"), {

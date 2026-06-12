@@ -55,31 +55,6 @@
     margin-right: 6px;
   }
 
-  .cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 16px;
-    margin-bottom: 24px;
-  }
-  .card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-left: 4px solid var(--card-color, var(--accent));
-    border-radius: 10px;
-    padding: 16px;
-    cursor: pointer;
-    transition: background 0.15s, opacity 0.15s;
-    user-select: none;
-  }
-  .card:hover { background: var(--panel-hover); }
-  .card.skjult { opacity: 0.35; }
-  .card .navn { font-weight: 600; font-size: 1.05rem; }
-  .card .ticker { color: var(--text-dim); font-size: 0.8rem; margin-bottom: 10px; }
-  .card .kurs { font-size: 1.5rem; font-weight: 700; }
-  .card .endring { font-size: 0.9rem; margin-top: 4px; }
-  .endring.pos { color: var(--pos); }
-  .endring.neg { color: var(--neg); }
-
   .kontroller {
     display: flex;
     flex-wrap: wrap;
@@ -121,11 +96,9 @@
       <h1>📈 Norske aksjer</h1>
       <a href="portefolje.html">Statens eierandeler →</a>
     </div>
-    <div class="subtitle">Kursutvikling for Equinor, Yara og Norsk Hydro (Oslo Børs)</div>
+    <div class="subtitle">Kursutvikling for åtte selskaper på Oslo Børs</div>
     <div class="oppdatert" id="oppdatertTekst"></div>
   </header>
-
-  <div class="cards" id="cards"></div>
 
   <div class="kontroller">
     <div class="knappegruppe" id="periodeKnapper">
@@ -133,6 +106,7 @@
       <button data-dager="30">1 mnd</button>
       <button data-dager="90">3 mnd</button>
       <button data-dager="180">6 mnd</button>
+      <button data-dager="ytd">YTD</button>
       <button data-dager="365" class="aktiv">1 år</button>
       <button data-dager="9999">2 år</button>
     </div>
@@ -151,24 +125,34 @@
 
 <script>
 const FARGER = {
-  "EQNR.OL": "#ff4d6d",
-  "YAR.OL":  "#4a9eff",
-  "NHY.OL":  "#2ecc71"
+  "EQNR.OL":  "#ff4d6d",
+  "YAR.OL":   "#4a9eff",
+  "NHY.OL":   "#2ecc71",
+  "DNB.OL":   "#00c2a8",
+  "KOG.OL":   "#ff8c42",
+  "KMAR.OL":  "#e8c547",
+  "TEL.OL":   "#b07ce8",
+  "AKAST.OL": "#8b98a5"
 };
 const SYMBOLER = Object.keys(FARGER);
 const data = window.AKSJEDATA;
 
-let periodeDager = 365;
+let periode = 365; // antall dager, eller "ytd" for hittil i år
 let visning = "kurs";
-const skjulte = new Set();
+const skjulte = new Set(); // selskaper skjult via klikk i tegnforklaringen
+
+function periodeGrense() {
+  if (periode === "ytd") return new Date().getFullYear() + "-01-01";
+  if (periode >= 9999) return null;
+  const grense = new Date();
+  grense.setDate(grense.getDate() - periode);
+  return grense.toISOString().slice(0, 10);
+}
 
 function filtrerPunkter(symbol) {
   const punkter = data[symbol].punkter;
-  if (periodeDager >= 9999) return punkter;
-  const grense = new Date();
-  grense.setDate(grense.getDate() - periodeDager);
-  const grenseStr = grense.toISOString().slice(0, 10);
-  return punkter.filter(p => p[0] >= grenseStr);
+  const grense = periodeGrense();
+  return grense ? punkter.filter(p => p[0] >= grense) : punkter;
 }
 
 function lagDatasett() {
@@ -192,35 +176,6 @@ function lagDatasett() {
   });
 }
 
-function lagKort() {
-  const container = document.getElementById("cards");
-  container.innerHTML = "";
-  for (const symbol of SYMBOLER) {
-    const info = data[symbol];
-    const punkter = filtrerPunkter(symbol);
-    const start = punkter.length ? punkter[0][1] : 0;
-    const slutt = punkter.length ? punkter[punkter.length - 1][1] : 0;
-    const endringPst = start ? ((slutt / start) - 1) * 100 : 0;
-    const kl = endringPst >= 0 ? "pos" : "neg";
-    const pil = endringPst >= 0 ? "▲" : "▼";
-
-    const kort = document.createElement("div");
-    kort.className = "card" + (skjulte.has(symbol) ? " skjult" : "");
-    kort.style.setProperty("--card-color", FARGER[symbol]);
-    kort.title = "Klikk for å vise/skjule i grafen";
-    kort.innerHTML = `
-      <div class="navn">${info.navn}</div>
-      <div class="ticker">${symbol}</div>
-      <div class="kurs">${slutt.toLocaleString("nb-NO", {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${info.valuta}</div>
-      <div class="endring ${kl}">${pil} ${Math.abs(endringPst).toFixed(1)} % i perioden</div>`;
-    kort.addEventListener("click", () => {
-      skjulte.has(symbol) ? skjulte.delete(symbol) : skjulte.add(symbol);
-      oppdater();
-    });
-    container.appendChild(kort);
-  }
-}
-
 let chart;
 function tegnGraf() {
   const ctx = document.getElementById("graf").getContext("2d");
@@ -233,7 +188,14 @@ function tegnGraf() {
       maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
       plugins: {
-        legend: { labels: { color: "#e8edf2", usePointStyle: true, pointStyle: "line" } },
+        legend: {
+          labels: { color: "#e8edf2", usePointStyle: true, pointStyle: "line" },
+          onClick: (e, legendItem) => {
+            const symbol = SYMBOLER[legendItem.datasetIndex];
+            skjulte.has(symbol) ? skjulte.delete(symbol) : skjulte.add(symbol);
+            oppdater();
+          }
+        },
         tooltip: {
           backgroundColor: "#1a2129",
           borderColor: "#2c3640",
@@ -258,7 +220,8 @@ function tegnGraf() {
               const dato = this.getLabelForValue(val);
               const [y, m, d] = dato.split("-");
               const mnd = ["jan","feb","mar","apr","mai","jun","jul","aug","sep","okt","nov","des"];
-              return periodeDager > 180 ? `${mnd[+m-1]} ${y.slice(2)}` : `${+d}. ${mnd[+m-1]}`;
+              const langPeriode = periode !== "ytd" && periode > 180;
+              return langPeriode ? `${mnd[+m-1]} ${y.slice(2)}` : `${+d}. ${mnd[+m-1]}`;
             }
           },
           grid: { color: "rgba(140,152,165,0.08)" }
@@ -276,14 +239,13 @@ function tegnGraf() {
 }
 
 function oppdater() {
-  lagKort();
   tegnGraf();
 }
 
 document.getElementById("periodeKnapper").addEventListener("click", e => {
   const btn = e.target.closest("button");
   if (!btn) return;
-  periodeDager = +btn.dataset.dager;
+  periode = btn.dataset.dager === "ytd" ? "ytd" : +btn.dataset.dager;
   document.querySelectorAll("#periodeKnapper button").forEach(b => b.classList.toggle("aktiv", b === btn));
   oppdater();
 });
@@ -304,7 +266,8 @@ document.getElementById("visningKnapper").addEventListener("click", e => {
 })();
 
 document.getElementById("footer").textContent =
-  "Data fra Yahoo Finance · Oppdateres automatisk hvert 15. minutt på hverdager i børsens åpningstid";
+  "Klikk på et selskap i tegnforklaringen for å skjule/vise det · Data fra Yahoo Finance · " +
+  "Oppdateres automatisk hvert 15. minutt på hverdager i børsens åpningstid";
 
 oppdater();
 </script>
